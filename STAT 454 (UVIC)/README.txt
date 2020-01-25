@@ -1,3 +1,10 @@
+#-------------------------------------------------------------------------------------------------------------------------------
+
+The data for this project was not uploaded but may be found at https://www.kaggle.com/c/prudential-life-insurance-assessment.
+In addtion the models produced were not uploaded but may be reproduced by running the appropriate r code in /Scripts.
+
+#-------------------------------------------------------------------------------------------------------------------------------
+
 This folder contains all files relvant to the submission of the STAT 454 project for Rai Goyal and Andrew Muth. 
  
 The report summarazing the work done is the file "STAT 454 Final Project Report.pdf"
