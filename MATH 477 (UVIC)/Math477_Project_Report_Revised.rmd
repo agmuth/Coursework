@@ -1,0 +1,218 @@
+---
+title: "Pricing Asian Options"
+author: "Andrew Muth"
+date: "March 25, 2019"
+output: html_document
+header-includes:
+   - \usepackage{amssymb}
+   - \usepackage{amsmath}
+   - \usepackage{mathbb}
+---
+
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(latex2exp)
+library(profmem)
+```
+# A Brief Overview of Monte Carlo Methods
+
+Monte Carlo methods are a broad class of computational algorithms that use repeated random sampling to obtain numerical results. Applications of Monte Carlo Methods fall primarily into three problem classes: optimization, numerical integration and sampling from a probability distribution. The use of Monte Carlo methods is often motivated when the system of interest is sufficiently complex to make obtaining analytic results extremely difficult or impossible. In these cases, it is often possible to describe the system accurately enough to simulate it, allowing for the study of aggregate/mean behaviour. 
+
+The theoretical underpinnings for Monte Carlo methods come from the Strong Law of Large Numbers, which loosely states that for a given statistic $T(X)$ of a random variable $X$ the empirical average of independent draws of this statistic converges almost surely in probability to its expected value. That is,
+
+
+$$\frac{1}{N} \sum_{i=1}^{N} T(x_{i}) \xrightarrow[]{p} \mathbb{E} \ T(X) \ \ a.s.,\ \ \ \ \ \text{as} \ \ \  N \xrightarrow[]{} \infty$$
+Moreover, if the statistic of interest is the mean, then provided the first and second moments are finite, we have from the Central Limit Theorem that 
+$$\frac{\bar{x} - \mu}{\sigma / \sqrt{N}} \xrightarrow[]{d} \mathcal{N} \big(0,1 \big) ,  \ \ \ \ \ \text{as} \ \ \  N \xrightarrow[]{} \infty$$
+and thus for large $N$ we have that, 
+
+$$\bar{x} \approx \mathcal{N} \big(\mu, \ \sigma^{2}/N \big)\ $$
+Using $\bar{x}$ and $s^2$ to estimate $\mu$ and $\sigma^2$ respectively, we can then make interval estimates for $\mu$. Specifically, a $1-\alpha$ confidence interval for $\mu$ is $\bigg[ \bar{x}+z_{_{-\alpha/2}}\frac{s}{\sqrt N} , \bar{x}+z_{_{1-\alpha/2}}\frac{s}{\sqrt N}\bigg]$ where $z_{_\alpha}$ is the $\alpha^{th}$ percentile of the standard normal distribution. Looking at this interval we can see that error of our estimate $\bar{x}$ of $\mu$ is on the order of $1/\sqrt{N}$.
+
+Up until now we have been fairly loose with our definitions. For our purposes there is little harm in this, however, there are two points which merit clarification. The first is the usual caveat that $\mu$ is a fixed quantity and as such the interval estimate above either contains $\mu$ or it does not. We can increase our chances a priori of the interval containing $\mu$ by taking a smaller $\alpha$ however after we have sampled the distribution the resulting interval either contains $\mu$ or it does not. Note that taking wider intervals will increase the long run proportion of intervals which contain the true mean.
+
+The second point which merits clarification is the statement regarding the convergence of Monte Carlo methods. Specifically, the claim that the convergence is $o \big(1/ \sqrt{N} \big)$. This notation technically means that $\rVert \bar{x} - \mu \lVert \ < c\big(1/ \sqrt{N} \big) \ , \ c >0$. Whereas with Monte Carlo methods what we are technically dealing with is convergence in probability the definition of which is as follows:
+
+The sequence of random variables $(Y_{n})_{n=1}^{\infty}$ converges in probability to $Y$, written $Y_{n} \xrightarrow[]{p} Y$ if $\ lim_{n \Rightarrow \infty} Prob \bigg( \rVert Y_{n} - Y \lVert \ < \epsilon \bigg) = 1$ for all $\epsilon > 0$.
+
+Thus, we see that convergence in probability and convergence are indeed two different statements and thus the statement that Monte Carlo methods converge on order the of $1/\sqrt{N}$ is technically not correct. It is nevertheless not a bad way to think about the accuracy of, and sample sizes required for, Monte Carlo methods.
+
+
+
+# Pricing Asian Options using Monte carlo Methods
+
+The goal of this project is to use Monte Carlo methods to efficiently and accurately price an Asian option. An Asian option with strike price $K$ and strike time $D$ (measured in days) pays $\bigg( \frac{1}{D} \sum_{i=1}^{D} S_{d}(i) - K \bigg)^{+}$ at the end of the contract period where $S_{d}(i)$ is the price of the security at the close on the $i^{th}$ day. That is an Asian option is essentially a bet that the average closing price of the security over the contract period will be greater than the strike price $K$.
+
+
+The Algorithm for a single simulation of the payoff of an Asian option is as follows:
+
+Step 1) Generate $D$ normal random variables with mean $\bigg( r - \frac{\sigma^{2}}{2} \bigg) \frac{1}{252}$ and variance $\frac{\sigma^{2}}{252}$.  
+step 2) Produce an additive random walk by taking the cumulative sum of the normal random variables from step 1.  
+Step 3) Produce a multiplicative random walk by exponentiating the additive random walk in step 2.  
+step 4) Multiply the multiplicative random walk in step 3 by the initial price of the security $S_{0}$.  
+Step 5) Compute $\bigg( \frac{1}{D} \sum_{i=1}^{D} S_{d}(i) - K \bigg)^{+}$ and discount.  
+
+The implementation of this algorithm can be found in the file "AsianOption.R". We load in this file and use the function "priceAsianOptionMonteCarlo" to price an Asian option with initial price $\$61$, strike price $\$63$, volatility $0.3$ and interest rate $0.08\%$ over $6$ months.
+
+We begin by naively pricing the option using a single simulation twice to illustrate the need for at least moderate sample sizes when using Monte Carlo methods.
+
+```{r, message=FALSE}
+source("AsianOption.R")
+
+s <- 61 
+k <- 63
+sigma <- 0.3 
+r <- 0.08
+D <- 126
+
+set.seed(12345)
+print(paste0("The payoff of the option is : $", priceAsianOptionMonteCarlo(n=1, s, D, k, r, sigma)))
+print(paste0("The payoff of the option is : $", priceAsianOptionMonteCarlo(n=1, s, D, k, r, sigma)))
+```
+Indeed, as previously mentioned when using Monte Carlo techniques, one must compute the statistic of interest over many simulations, which under mild conditions will converge in probability to the true mean. As our statistic of interest is the mean, we have from the Central Limit Theorem, 
+
+$$\bar{x} \approx \mathcal{N} \bigg(\mu,\frac{\sigma^{2}}{N} \bigg)\ $$
+Using the sample mean $\bar{x}$ to estimate the true mean $\mu$ and the sample variance $s^{2}$ to estimate the true variance $\sigma^{2}$ we can begin to make statements as to the accuracy of the estimate $\bar{x}$. Suppose we wanted to construct a $99\%$ confidence interval for our estimate $\bar{x}$ so that the length of this interval was less than $0.01$ (within a cent). This interval is given by $\bigg[ \bar{x}-z_{_{0.995}}\frac{s}{\sqrt N} , \bar{x}+z_{_{0.995}}\frac{s}{\sqrt N}\bigg]$, where $z_{_{0.995}} \approx 2.58$. Therefore, for this interval to have length less than $0.01$ we must have 
+
+$$\frac{s}{\sqrt N} < \bigg( \frac{0.01}{2 z_{_{0.995}}} \bigg) \approx  0.002 $$
+That is the asymptotic standard deviation must be less than $0.002$.
+
+We now proceed to simulate the payoff of the option for increasingly large $N$.
+
+```{r, fig.width = 12, fig.height = 6, message=FALSE}
+df1 <- data.frame(Time=rep(0, 7), Size=rep(0, 7), log10N=seq(0, 6), mean = rep(0, 7), sd=rep(0, 7), prob=rep(0, 7), max=rep(0, 7))
+
+df1$Size[1] <- total(profmem(priceAsianOptionMonteCarlo(n=1, s, D, k, r, sigma)))
+df1$Size[2] <- total(profmem(priceAsianOptionMonteCarlo(n=10, s, D, k, r, sigma)))
+df1$Size[3] <- total(profmem(priceAsianOptionMonteCarlo(n=100, s, D, k, r, sigma)))
+df1$Size[4] <- total(profmem(priceAsianOptionMonteCarlo(n=1000, s, D, k, r, sigma)))
+df1$Size[5] <- total(profmem(priceAsianOptionMonteCarlo(n=10000, s, D, k, r, sigma)))
+df1$Size[6] <- total(profmem(priceAsianOptionMonteCarlo(n=100000, s, D, k, r, sigma)))
+#df1$Size[7] <- total(profmem(priceAsianOptionMonteCarlo(n=1000000, s, D, k, r, sigma)))
+df1$Size[7] <- NA
+
+set.seed(12345)
+for(i in 0:6){
+  set.seed(34567)
+  df1$Time[i+1] <- system.time(prices <- priceAsianOptionMonteCarlo(n=10^i, s, D, k, r, sigma))[3]
+  df1$mean[i+1] <- round(mean(prices), digits=4)
+  df1$sd[i+1] <- round(sd(prices) / sqrt(length(prices)), digits=4)
+  df1$prob[i+1] <- round(mean(prices > 0), digits=4)
+  df1$max[i+1] <- round(max(prices), digits=4)
+}
+
+cnames <- c("Log10 Number of Simulation", "Mean Payoff", "Asymp. Standard Deviation", "Probabilty of Payoff", "Max Payoff")
+
+tbl <- df1[,3:7]
+tbl <- tableGrob(tbl, cols=cnames, rows=NULL)
+
+gg1 <- ggplot(as.data.frame(prices[prices>0]), aes(x=prices[prices>0]))+
+  geom_histogram(binwidth=0.01)+
+  xlab("Payoff in Dollars")+
+  ylab("Count")+
+  ggtitle("Payoff when Option is in the Money (1 Million Simulations)")
+  
+
+grid.arrange(gg1, tbl, ncol=1)
+```
+
+It appears $1,000,000$ simulations is almost sufficient to attain the confidence interval described above. Additionally, the mean payoff of the option is approximately $\$2.63$ and the option finishes in the money approximately $43\%$ of the time (this probability also converges to the true probability as $N \rightarrow \infty$ as a consequence of the Law of Large Numbers).
+
+```{r, fig.width = 12, fig.height = 6, message=FALSE}
+gg2 <- ggplot(df1, aes(x=log10N, y=mean, colour="mean")) +
+  geom_line(linetype="dashed", colour="red") +
+  geom_point(colour="red") + 
+  xlab(TeX("$Log_{10}$ Simulation Size")) +
+  ylab("Mean Payoff")
+
+gg3 <- ggplot(df1[-1,], aes(x=log10N, y=sd, colour="sd")) +
+  geom_line(linetype="dashed", colour="blue") +
+  geom_point(colour="blue") + 
+  xlab(TeX("$Log_{10}$ Simulation Size")) +
+  ylab("Asympototic Standard Deviation")
+
+gg4 <- ggplot(df1, aes(x=log10N, y=prob, colour="prob")) +
+  geom_line(linetype="dashed", colour="green") +
+  geom_point(colour="green") + 
+  xlab(TeX("$Log_{10}$ Simulation Size")) +
+  ylab("Probability of Payoff")
+  
+  
+grid.arrange(gg2, gg3, gg4, nrow=1)
+```
+
+As mentioned in class while Monte Carlo Methods are extremely versatile in that they can be used to accurately simulate many complex systems. However, they are computationally expensive and potentially very slow. The rest of this project is dedicated to studying how time and memory usage scale with the sample size for pricing an Asian option. As well as exploring methods to efficiently speed up the computation.  
+
+```{r, fig.width = 12, fig.height = 6, message=FALSE, warning=FALSE}
+gg5 <- ggplot(df1, aes(x=log10N, y=Time, colour="Time")) +
+  geom_line(linetype="dashed", colour="red") +
+  geom_point(colour="red") + 
+  xlab(TeX("$Log_{10}$ Simulation Size")) +
+  ylab("Time (seconds)")
+
+gg6 <- ggplot(df1, aes(x=log10N, y=log10(Size), colour="size")) +
+  geom_line(linetype="dashed", colour="blue") +
+  geom_point(colour="blue") + 
+  xlab(TeX("$Log_{10}$ Simulation Size")) +
+  ylab(TeX("$Log_{10}$ Size (Bytes)"))
+
+grid.arrange(gg5, gg6, nrow=1)
+```
+
+As we can see from the above graphics it takes considerably more time and memory to run $1,000,000$ Monte Carlo simulations that even just $100,000$. As mentioned earlier, in order to obtain a $99\%$ confidence interval of length less than one cent we would need in excess of one million simulations. Note that in the case of simulating the payoff of the option each run is independent and it is thus possible, and possibly advantageous, to break up the total number of simulations into batches and then run the required number of batches to obtain the desired sample size. Note that in some cases breaking the simulation into batches may also reduced the amount of memory used, if the memory usage grows faster than linear with the simulation size. Even if breaking the simulation up into batches does not reduced the total amount of memory used it can be used to reduce the amount of memory used at any point in time, allowing the simulation to be run on systems with less RAM. This is possible since rather than storing the outcome of each simulation we need only store sufficient statistics for the statistics of interest. In the case of the sample mean $\bar{x}$ and sample variance $s^2$ this corresponds to storing the sums $\sum_{i=1}^{N} x_{i}$ and $\sum_{i=1}^{N} x_{i}^2$. The function "mcWrapper" (short for Monte Carlo wrapper) implements this approach. We now use this function to compare how best to break up the task of computing $1,000,000$ Monte Carlo runs of the priceAsianOption function.
+
+```{r, fig.width = 12, fig.height = 6, message=FALSE}
+source("mcWrapper.R")
+
+df2 <- data.frame(Time=rep(0,4), log10batchsize=seq(2, 5))
+
+set.seed(12345)
+for(i in 2:5){
+  batchsize <- 10^i
+  iters <- 10^(6-i)
+  df2[i-1, 1] <- as.numeric(system.time(mc_stats <- mcWrapper(niters=iters, parallel=FALSE, ncores=1,
+                                                                func=priceAsianOptionMonteCarlo, 
+                                                                n=batchsize, s=61, D=126, k=63, r=0.08, sigma=0.03))[3])
+}
+
+gg7 <- ggplot(df2, aes(x=log10batchsize, y=Time, colour="Time")) +
+  geom_line(linetype="dashed", colour="red") +
+  geom_point(colour="red") + 
+  xlab(TeX("$Log_{10}$ batch size")) +
+  ylab("Time (seconds)") + 
+  ggtitle("Time to Compute 1 Million Monte Carlo Runs")
+
+gg7
+```
+
+Using batch sizes of $1,000$ and $10,000$ it takes approximately $15$ seconds to compute $1$ million Monte Carlo runs. Using batch sizes of $1,000$ we will now see if we can improve upon this by running the simulations in parallel.
+
+```{r,fig.width = 12, fig.height = 8, message=FALSE}
+batchsize <- 20000 #best batch size from above
+iters <- as.integer(10^6 / batchsize) #corresponding number of interations needed
+max_cores <- detectCores() #12 on my machine
+
+df3 <- data.frame(Time=rep(0, max_cores), cores=seq(1, max_cores))
+
+set.seed(12345)
+for(i in 1:max_cores){
+  df3$Time[i] <- as.numeric(system.time(mc_stats <- mcWrapper(niters=iters, parallel=TRUE, ncores=i,
+                                                                func=priceAsianOptionMonteCarlo, 
+                                                                n=batchsize, s=61, D=126, k=63, r=0.08, sigma=0.03))[3])
+  #print(paste0(i, " cores: ", df3$Time[i], " s"))
+}
+
+gg8 <- ggplot(df3, aes(x=cores, y=Time, colour="Time")) +
+  geom_line(linetype="dashed", colour="red") +
+  geom_point(colour="red") + 
+  xlab("Number of Cores") +
+  ylab("Time (seconds)") + 
+  ggtitle("Time to Compute 1 Million Monte Carlo Runs") +
+  labs(subtitle="Batch Sizes of 1,000") +
+  scale_x_continuous(breaks=seq(1, 12, 1))
+
+gg8
+```
