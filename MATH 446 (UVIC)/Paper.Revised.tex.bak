@@ -1,0 +1,236 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[fleqn]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{biblatex}
+\usepackage{lmodern}
+
+
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+\newtheorem{theorem}{Theorem}
+\newtheorem*{theorem*}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\usepackage{hyperref}% *
+
+\author{Muth, Andrew\\ V00831548}
+\title{The Diffusion Equation\\ and the Interior Control Problem}
+\date{December $4^{th}$, 2017}
+
+
+
+
+\begin{document}
+\begin{titlepage}
+\maketitle% *
+\end{titlepage}
+Consider the following nonhomogeneous diffusion equation:\\
+\begin{equation}
+\tab\tab \left\{\begin{aligned}
+        u_t-\Delta_x u &= f\cdot\chi_\omega &in\,\, \Omega\times\left(0,T\right)\\
+        u\left.\right\vert_{\partial\Omega}&= 0 &on\,\, \partial\Omega\times\left(0,T\right)\\
+        u\left(x,0\right) &= u^0(x) &in\,\, \Omega\times\left\{t=0\right\}
+       \end{aligned}
+ \right.
+\end{equation}\\ 
+
+where $\omega$ is a nonempty proper subset of  $\Omega \subset \mathbb{R}^n$ and $f \in L^2(\Omega)$ is called the control function. Now given $\omega$ we would like to be able to select a control $f$ such that the dynamics of the above system at time $T$ are governed by some predetermined function $u^1 \in L^2(\Omega)$. However, before proceeding we must first define exactly what we mean for the dynamics of system (1) at time $T$ to be governed by $u^1$. This motivates the following definitions. 
+
+\begin{definition}
+For any target time $T>0$ , and for any initial data\\ $u^0\in L^2(\Omega)$ we define the set of \textbf{reachable states} as follows: $$R(T,u^0):=\{u(\cdot,T)\,|\,u(\cdot,\cdot)\, \text{a solution to (1) with } f\in L^2(\Omega)\times (0,T)\}$$
+\end{definition}
+
+\begin{definition}
+The diffusion equation is \textbf{null controllable} in time T if, for every initial data $u^0\in L^2(\Omega)$, the set of reachable states $R(T,u^0)$ contains  the $0$ function.
+\end{definition}
+
+\begin{definition}
+The diffusion equation is \textbf{exactly controllable} in time T if, for every initial data $u^0\in L^2(\Omega)$, the set of reachable states $R(T,u^0)$ is $L^2(\Omega)$.
+\end{definition}
+
+\begin{definition}
+The diffusion equation is \textbf{approximately controllable} in time T if, for every initial data $u^0\in L^2(\Omega)$, the set of reachable states $R(T,u^0)$ is dense in $L^2(\Omega)$.
+\end{definition}
+
+It is know that the diffusion equation is null controllable, but not exactly controllable as any solution to (1) will be an element of $C^\infty(\Omega \texttt{\char`\\}\omega)$ at time $t=T$. Therefore, we will dedicated the rest of this paper to proving the approximate controllability of the diffusion equation. The approximate controllability  problem is formulated as follows:\\ 
+
+For all $\epsilon>0$ and a target function $u^1 \in L^2(\Omega)$ does there exist a control function $f \in L^2(\Omega)$ such that $\lVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}\leq\,\epsilon$. Where $u(x,T)$ is the solution of equation (1) with control $f$ evaluated at time $T$.\\
+
+Finally due to the linearity of the diffusion equation we may take the initial data $u^0(\cdot)\equiv 0$ on $\Omega\times\left\{t=0\right\}$ without too much loss of generality.\\
+
+Now given that we know how we want the dynamics of system (1) to behave at time $T$ it seems natural to try and formulate some sort of backwards problem, whereby the initial condition is our target function and the system runs backwards in time to the original initial condition of (1). To this extent we consider the adjoint diffusion equation which runs backwards in time.
+\begin{equation}
+\tab\tab \left\{\begin{aligned}
+        \varphi_t+\Delta_x\varphi &= 0,\, in\,\, \Omega\times\left(0,T\right)\\
+        \varphi\left.\right\vert_{\partial\Omega} &= 0,\, on\,\, \partial\Omega\times\left(0,T\right)\\
+        \varphi\left(x,T\right) &=\varphi_T\left(x\right), \, in\,\, \Omega\times\left\{T\right\}
+       \end{aligned}
+ \right.
+\end{equation}
+
+Indeed this reasoning is justified as the controllability of a system is in fact closely related to a special property of its adjoint system known as observability. However, we will not delve into this any further and proceed with the following lemma.  
+
+\begin{lemma}
+Let $f$ be the control associated with equation (1), $u\left(x,T\right)$ the corresponding terminal state and $\varphi$ a solution to the adjoint diffusion equation with final data $\varphi_T$ then,
+$$ \int_{0}^{T}\int_\omega\,f\varphi\,dx\,dt = \int_\Omega\,u \left(x,T\right) \varphi_T\,dx$$
+\end{lemma}
+
+\begin{proof}
+\begin{equation*}
+\begin{aligned}
+\int_{0}^{T}\int_\omega\,f\varphi\,dx\,dt &=\, \int_{0}^{T}\int_\Omega\left(u_t-\Delta u\right)\varphi\,dx\,dt\\
+&=-\int_{0}^{T}\int_\Omega \varphi_t u\,dx\,dt\ +\,\int_\Omega\,u\varphi\biggr|_{0}^{T}\,dx + \int_{0}^{T}\int_\Omega D\varphi \cdot Du\,dx\,dt\,
+- \int_{0}^{T}\int_{\partial\Omega} \dfrac{\partial u}{\partial\nu}\varphi\,d\sigma\,dt\\
+\\
+&=-\int_{0}^{T}\int_\Omega \varphi_t u\,dx\,dt\ +\,\int_\Omega\,u\varphi\biggr|_{0}^{T}\,dx - \int_{0}^{T}\int_\Omega \Delta\varphi u\,dx\,dt\\
+&+\int_{0}^{T}\int_{\partial\Omega} u\dfrac{\partial\varphi}{\partial\nu}\,d\sigma\,dt\ - \int_{0}^{T}\int_{\partial\Omega} \dfrac{\partial u}{\partial\nu}\varphi\,d\sigma\,dt\\
+&=-\int_{0}^{T}\int_\Omega\left(\varphi_t + \Delta\varphi\right)u\,dx\,dt\,+\,\int_\Omega\,u\varphi\biggr|_{0}^{T}\,dx +\,\int_{0}^{T}\int_{\partial\Omega}\left(u\dfrac{\partial\varphi}{\partial\nu}-\dfrac{\partial u}{\partial\nu}\varphi\right)\,d\sigma\,dt\\
+&=\int_\Omega\,u\left(x,T\right)\varphi_T\,dx
+\end{aligned}
+\end{equation*}
+Since $u^0$ was taken to be $0$ on $\Omega\times\left\{t=0\right\}$ and since $u\equiv\varphi\equiv 0$ on $\partial\Omega$.
+\end{proof}
+
+Now recall that given a target function $u^1\in L^2(\Omega)$ we are looking for a control $f$ such that for all $\epsilon>0$
+
+$$\lVert u(x,T)-u^1(x) \rVert_{L^2(\Omega)}^{} \leq\epsilon$$
+
+Where again, $u(x,T)$ is the terminal state of equation (1) associated with the control $f \in L^2(\Omega)$.\\
+
+To do this we proceed by taking $\epsilon >0$ and then defining the functional    $J_\epsilon :L^2(\Omega)\rightarrow \mathbb{R}$ by,
+  
+$$J_\epsilon(\varphi_T)=\dfrac{1}{2}\int_{0}^{T}\int_\omega\varphi^2\,dx\,dt\, +\,\epsilon\lVert \varphi_T \rVert_{L^2(\Omega)}\, -\,\int_\Omega\,u^1\varphi_T\,dx$$
+
+where $\varphi_T$ is the final data of the adjoint diffusion equation with corresponding solution $\varphi$.
+
+Now we claim that should $J_\epsilon (\,\cdot\,)$ attain its infimum at some $\widehat{\varphi}_T \in\L^2(\Omega)$ with $\widehat{\varphi}$ the corresponding solution to (2) with terminal data $\widehat{\varphi}_T$ then\\ $f=\widehat{\varphi} \cdot\chi_\omega$ is an appropriate control for equation (1) in that it guarantees that,
+
+ $$\lVert u(x,T)-u^1(x) \rVert_{L^2(\Omega)}^{} \leq\epsilon$$.
+
+To show this we will first assume that such a $\widehat{\varphi}_T \in\L^2(\Omega)$ exists, and that taking $f=\widehat{\varphi} \cdot\chi_\omega$ does in fact guarantee that $\lVert u(x,T)-u^1(x) \rVert_{L^2(\Omega)}^{} \leq\epsilon$. From here we will then show that the functional $J_\epsilon (\,\cdot\,)$ does in fact posses the necessary properties to ensure that it attains its infimum within its domain.\\
+
+
+As stated above suppose that there exists $\widehat{\varphi}_T \in\L^2(\Omega)$ such that \\$J_\epsilon (\widehat{\varphi}_T) = \inf\limits_{\psi_T \in L^2(\Omega)} J_\epsilon (\psi_T)$ and set $f=\widehat{\varphi} \cdot\chi_\omega$ where $\varphi$ is the corresponding solution to the adjoint diffusion equation with final data $\varphi_T$. Then for all terminal data $\psi_T \in L^2(\Omega)$ and $h \in \mathbb{R^\times}$ we have:
+
+\begin{equation*}
+\begin{aligned}
+0 &\leq J_\epsilon(\widehat{\varphi}_T\,+\,h\psi_T)\,-\,J_\epsilon(\widehat{\varphi}_T)\\
+&= \dfrac{1}{2}\int_{0}^{T}\int_\omega\left(\widehat{\varphi}\,+\,h\psi\right)^2\,dx\,dt\, +\,\epsilon\lVert\widehat{\varphi}_T\,+\,h\psi_T\rVert_{L^2(\Omega)}\, -\,\int_\Omega\,u^1\left(\widehat{\varphi}_T\,+\,h\psi_T\right)\,dx\\
+ &-\, \dfrac{1}{2}\int_{0}^{T}\int_\omega\widehat{\varphi}^2\,dx\,dt\, -\,\epsilon\lVert \widehat{\varphi}_T \rVert_{L^2(\Omega)}\, +\,\int_\Omega\,u^1\widehat{\varphi}_T\,dx\\
+ &\leq \dfrac{h^2}{2}\int_{0}^{T}\int_\omega\psi^2\,dx\,dt\,+\,h\int_{0}^{T}\int_\omega\widehat{\varphi}\psi\,dx\,dt \,+\,\epsilon|h|\lVert\psi_T\rVert_{L^2(\Omega)} \,-\, h\int_\Omega\,u^1\psi_T\,dx\,dt
+\end{aligned}
+\end{equation*}
+Now since $f=\widehat{\varphi}\cdot\chi_\omega$ by appealing to Lemma 1 we may rewrite the above as 
+$$0 \leq\dfrac{h^2}{2}\int_{0}^{T}\int_\omega\psi^2\,dx\,dt\,+\,+\,\epsilon|h|\lVert\psi_T\rVert_{L^2(\Omega)} \,+\, h\int_\Omega(u(x,T)\,-\,u^1(x))\psi_T\,dx\,dt$$
+Now if $h>0$ then dividing through by $h$ and taking the limit as $h\rightarrow 0^+$ we have:
+$$0\leq\,\epsilon\lVert\psi_T\rVert_{L^2(\Omega)} +\int_\Omega(u(x,T)\,-\,u^1(x))\psi_T\,dx\,dt$$
+Taking $\psi_T = - (u(x,T)\,-\,u^1(x))$ gives us
+$$\int_\Omega (u(x,T)\,-\,u^1(x))^2\,dx\,dt\,\leq\,\epsilon\lVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}$$
+and so,
+$$\lVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}\leq\,\epsilon$$
+Similarly if $h<0$ dividing through by $h$ and then taking the limit as $h\rightarrow 0^-$ we have:
+$$0\geq\,-\,\epsilon\lVert\psi_T\rVert_{L^2(\Omega)} +\int_\Omega(u(x,T)\,-\,u^1(x))\psi_T\,dx\,dt$$
+Taking $\psi_T = (u(x,T)\,-\,u^1(x))$ gives us
+$$\int_\Omega (u(x,T)\,-\,u^1(x))^2\,dx\,dt\,\leq\,\epsilon\lVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}$$
+and so,
+$$\lVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}\leq\,\epsilon$$
+
+Therefore we have shown that should there exist $\widehat{\varphi}_T \in\L^2(\Omega)$ such that $J_\epsilon (\widehat{\varphi}_T) = \inf\limits_{\psi \in L^2(\Omega)} J_\epsilon (\psi_T)$ then taking $f=\widehat{\varphi}\cdot\chi_\omega$ as the control in equation (1) ensures us that $||u(x,T)\,-\,u^1(x)||_{L^2(\Omega)}\leq\,\epsilon$.\\
+
+Now it is once again important to emphasize that we have presupposed the existence of a minimizer of our functional $J_\epsilon (\,\cdot\,)$ and that we are in no way guaranteed that such a function will exist as not all functionals obtain their infimum over their domain. However, in this case our functional $J_\epsilon (\,\cdot\,)$ does in fact obtain its infimum, but to prove so we must first introduce a result from the Calculus of Variations.
+
+\begin{theorem}{Existence of a Minimizer}
+\\Let $H$ be a reflexive Banach space, $K$ a closed convex subset of $H$, and $I\left[\,\cdot\,\right]:K\rightarrow\mathbb{R}$ a function satisfying:\\\\
+\tab 1) $I\left[\,\cdot\,\right]$ is convex.\\\\
+\tab 2) $I\left[\,\cdot\,\right]$ is lower semi-continuous, i.e.\\\\
+\tab\tab $I\left[\psi\right] \leq\liminf\limits_{k\rightarrow\infty}I\left[\psi_k\right]$ whenever $\psi_k \rightarrow \psi$ in $\L^2(\Omega)$.\\\\
+\tab 3) If $K$ is unbounded then $I\left[\,\cdot\,\right]$ is coercive, i.e.\\\\
+\tab\tab $\lim_{\lvert\lvert\psi\rvert\rvert\to\infty} I\left[\psi\right] =\infty$\\
+\\Then there exists $\varphi\in K$ such that $I\left[\varphi\right]=\inf\limits_{\psi\in K}I\left[\psi\right]$.
+\end{theorem}
+
+The convexity of $J_\epsilon (\,\cdot\,)$ is an immediate consequence of the convexity of the mapping $x \mapsto x^2$, Minkowski's inequality in the $L^2$ norm, and the linearity of the integral.
+
+To show that $J_\epsilon (\,\cdot\,)$ is lower semi continuous it suffices to prove that $J_\epsilon (\,\cdot\,)$ is continuous. Let $\left\{s_{T_k}\right\}_{k=1}^{\infty}$ be a sequence of final data of (2) converging to $s_T$ in $L^2(\Omega)$ and  $\left\{s_k\right\}_{k=1}^{\infty}$ the corresponding sequence of solutions of (2) converging to $s$ in $L^2(\Omega)$ then,
+\begin{equation*}
+\begin{aligned}
+& \lim_{k \rightarrow \infty} \biggr| J_\epsilon(s_T)-J_\epsilon(s_{T_k})\biggr|
+\\
+&=\lim_{k \rightarrow \infty} \biggr|\dfrac{1}{2}\int_{0}^{T}\int_\omega s^2\,dx\,dt\, +\,\epsilon\lVert s_T \rVert_{L^2(\Omega)}\, -\,\int_\Omega\,u^1 s_T\,dx\\
+&-\dfrac{1}{2}\int_{0}^{T}\int_\omega s_k^2\,dx\,dt\, -\,\epsilon\lVert s_{T_k} \rVert_{L^2(\Omega)}\, +\,\int_\Omega\,u^1 s_{T_k}\,dx \biggr|
+\\
+&\leq \lim_{k \rightarrow \infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega |s^2-s_k^2|\,dx\,dt+ \epsilon\biggr| \lVert s_T \rVert_{L^2(\Omega)}-\lVert s_{T_k} \rVert_{L^2(\Omega)} \biggr| + \int_\Omega\,|u^1(s_T -s_{T_k})|\,dx
+\\
+&\leq \lim_{k \rightarrow \infty} \dfrac{1}{2}\int_{0}^{T} \lVert s-s_k \rVert_{L^2(\Omega)}\lVert s+s_k \rVert_{L^2(\Omega)}\,dt +\epsilon\lVert s_T-s_{T_k} \rVert_{L^2(\Omega)}+ \lVert u^1 \rVert_{L^2(\Omega)}\lVert s-s_k \rVert_{L^2(\Omega)}\\
+&=0
+\end{aligned}
+\end{equation*} 
+
+and so $J_\epsilon (\,\cdot\,)$ is continuous and thus lower semi-continuous as well.\\
+ Finally we must show that $J_\epsilon (\,\cdot\,)$ is coercive. Instead of proving that $J_\epsilon (\,\cdot\,)$ is coercive directly we will instead show that
+$$\liminf_{\lvert\lvert\varphi_T\rvert\rvert_{L^2(\Omega)} \to\infty}\dfrac{J_\epsilon (\varphi_T)}{\lvert\lvert\varphi_T\rvert\rvert_{L^2(\Omega)}} \geq \epsilon$$
+
+which implies $J_\epsilon (\varphi_T) \rightarrow \infty$ as $\lvert\lvert\varphi_T\rvert\rvert_{L^2(\Omega)} \rightarrow \infty$.
+
+To do this we let  $\{\varphi_{T_k}\}_{k=1}^{\infty} \subset L^2(\Omega)$ be a sequence of final data to (2) such that $\lVert \varphi_{T_k} \rVert_{L_{2}(\Omega)} \rightarrow \infty$. We then normalize this sequence by defining,
+$$\widetilde{\varphi}_{T_k} = \dfrac{\varphi_{T_k}}{\lvert\lvert\varphi_{T_k}\rvert\rvert_{L^2(\Omega)}}$$
+so that $\lvert\lvert\widetilde{\varphi}_{T_k}\rvert\rvert_{L^2(\Omega)} =1$, and let $\widetilde{\varphi}_k$ be the solution to (2) with final data $\widetilde{\varphi}_{T_k}$. Then we have,
+$$\dfrac{J_\epsilon(\varphi_{T_k})}{\lvert\lvert\varphi_{T_k}\rvert\rvert_{L^2(\Omega)}} = \lvert\lvert\varphi_{T_k}\rvert\rvert_{L^2(\Omega)}\dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_k^2\,dx\,dt\, +\,\epsilon-\,\int_\Omega\,u^1\widetilde{\varphi}_{T_k}\,dx$$
+
+
+
+Then since $u^1$ was taken such that $u^1 \in L^2(\Omega)$ it follows that 
+$$\int_\Omega\,u^1\widetilde{\varphi}_{T_k}\,dx < \lVert u^1(x)\rVert_{L^2(\Omega)} < \infty$$
+by H{\"o}lder's inequality and thus if 
+$\liminf_{k \to\infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_k^2\,dx\,dt >0$ then it follows immediately that $\dfrac{J_\epsilon(\varphi_{T_k})}{\lvert\lvert\varphi_{T_k}\rvert\rvert_{L^2(\Omega)}} \rightarrow \infty$ and thus $J_\epsilon (\,\cdot\,)$ is coercive.
+
+
+Finally we introduce one last theorem to help us handle the case where $\liminf_{k \to\infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_k^2\,dx\,dt =0$.
+
+\begin{theorem}{Holmgren Uniqueness Theorem}
+\\Let $P$ be a differential operator with constant coefficients in $R^n$. Let $u$ be a solution of $Pu = 0$ in $Q_1$, where $Q_1$ is an open set of $R^n$. Suppose that $u = 0$ in $Q_2$ where $Q_2$ is an open nonempty subset of $Q_1$. Then $u = 0$ in $Q_3$, where $Q_3$ is the open subset of $Q_1$ which contains $Q_2$ and such that any characteristic hyperplane of the operator $P$ which intersects $Q_3$ also intersects $Q_1$.
+\end{theorem}
+
+Now if $\liminf_{k \to\infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_k^2\,dx\,dt =0$ it follows that $\{\widetilde{\varphi}_{T_k}\}_{k=1}^{\infty}$ is bounded in $L^2(\Omega)$ and so there exists a subsequence $\widetilde{\varphi}_{T_{k_j}} \rightharpoonup \psi_T$ weakly for some $\psi_T \in L^2(\Omega)$ so that $\widetilde{\varphi}_{k_j} \rightharpoonup \psi$ weakly in $L^2(\Omega)$ as well, where $\psi$ is a solution to (2) with final data $\psi_T$. Then since $J_\epsilon(\,\cdot\,)$ is lower semi-continuous we have, 
+
+$$\dfrac{1}{2}\int_{0}^{T}\int_\omega\psi^2\,dx\,dt \leq\liminf_{j \to\infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_{k_j}^2\,dx\,dt \leq \liminf_{k \to\infty} \dfrac{1}{2}\int_{0}^{T}\int_\omega\widetilde{\varphi}_k^2\,dx\,dt =0$$
+
+and so $\psi \equiv 0$ in $\omega \times (0,T)$. \\
+
+We now appeal to Holmgren's Uniqueness Theorem. The principal part of a differential operator is the differential operator obtained by discarding all terms which are not of maximal order. Then since the differential operator of the adjoint diffusion equation is $P=\partial t + \Delta_x$ it follows that the principal part is $P_p=\Delta_x$. The characteristic hyperplanes of a differential operator are the hyperplanes whose unit normal vectors map to $0$ under the action of the principal part of the differential operator. Then since for any $(x,t) \in \mathbb{R} \times (0,\infty)$, $\Delta_x(x,t) = \lvert x\rvert ^2$ it follows that the characteristic hyperplanes of the differential operator $\partial t +\Delta_x$ are the hyperplanes with unit normal vector $(0,\pm 1)$. 
+
+Then since $\psi$ is a solution to the adjoint diffusion equation, setting\\ $Q_1 = \Omega \times(0,T)$, $Q_2 = \omega \times(0,T)$ we may take $Q_3 = \Omega \times(0,T)$ and thus by Holmgren's Uniqueness Theorem $\psi \equiv 0$ in $\Omega \times (0,T)$ and it therefore follows that $\psi_T \equiv 0$ in $\Omega \times (0,T)$, and thus $\int_\Omega\,u^1\widetilde{\varphi}_{T_{k_j}}\,dx \rightarrow 0$.\\
+Therefore, 
+$$\liminf_{k \to\infty}\dfrac{J_\epsilon (\varphi_T)}{\lvert\lvert\varphi_T\rvert\rvert_{L^2(\Omega)}} \geq \liminf_{k \to\infty} \biggr( \epsilon - \int_\Omega\,u^1\widetilde{\varphi}_{T_k}\,dx\biggr)\geq \liminf_{j \to\infty} \biggr( \epsilon - \int_\Omega\,u^1\widetilde{\varphi}_{T_{k_j}}\,dx\biggr) = \epsilon$$
+and thus $J_\epsilon(\,\cdot\,)$ is coercive.
+
+That is we have shown that the functional $J_\epsilon(\,\cdot)$ is convex, lower semi-continuous, and coercive and therefore $J_\epsilon(\,\cdot)$ attains its infimum in $L^2(\Omega)$.\\
+
+In summary our original assumption that there existed $\widehat{\varphi}_T \in\L^2(\Omega)$ such that $J_\epsilon (\widehat{\varphi}_T) = \inf\limits_{\psi \in L^2(\Omega)} J_\epsilon (\psi_T)$ was in fact correct and thus taking $f=\widehat{\varphi}\cdot\chi_\omega$ as the control to the diffusion equation gives us $$\rVert u(x,T)\,-\,u^1(x)\rVert_{L^2(\Omega)}\leq\,\epsilon$$ and therefore the diffusion equation is approximately controllable in $L^2(\Omega)$.
+
+\newpage
+\textbf{\Large References}\\\\
+\begin{equation*}
+\begin{aligned}
+&[1] \text{ Lawrence C. Evans, \textit{Partial Differentail Equations: Second Edition}. AMS 1998}\\\\
+&[2] \text{ Sorin Micu, Enrique Zuazua, \textit{An Introduction to the Controllability of Partial Differential}}\\& \,\,\,\,\,\,\,\,\,\text{\textit{Equations}.}\\\\
+&[3] \text{ Dustin Connery-Grigg, \textit{Control Theory and PDE's}.}
+\end{aligned}
+\end{equation*}
+\end{document}
+
+
+Lawrence C. Evans,  
+\textit{Partial Diﬀerential Equations: Second Edition}. 
+AMS 1998 
+
+\bibitem{} 
+Sorin Micu, Enrique Zuazua, 
+\textit{An Introduction to the Controllability of Partial Diﬀerential Equations}. 
+
+\bibitem{} 
+Dustin Connery-Grigg, 
+\textit{Control Theory and PDE’s}.
