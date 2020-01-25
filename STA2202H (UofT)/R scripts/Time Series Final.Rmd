@@ -1,0 +1,641 @@
+---
+title: Construction of Minimum Variance Indices with Heteroskedastic Time-varying
+  Asset Covariances
+author: "|"
+  | Name: Andrew Muth, Yi (Emily) Wang, Crystal Hai Ying Chen
+date: "December 3rd, 2019"
+output:
+  html_document:
+    df_print: paged
+fontsize: 10pt
+---
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, include = F}
+# required libraries and scripts
+library("forecast")
+library("rugarch")
+library(MASS)
+library(fGarch)
+library(ggplot2)
+library(reshape2)
+library(RColorBrewer)
+library(rugarch)
+library(rmgarch)
+library(RQuantLib)
+library(quadprog)
+library(quantmod)
+
+source("../SDAFE2.R")
+source("utils.r")
+```
+
+
+# 1.0.0 Goals and Motivation
+
+Time series analysis is useful in terms of identifying trends, seasonal variations, and changes in correlations over time, and thus, is widely used for building market portfolios or indices. The goal of this project is to construct a minimum variance index for Agriculture 12 in XDR for all calendar quarter ends starting March 31, 2017 through September 30, 2019. Note that Agriculture 12 involves the following assets: 
+
+* Flat Currency: USD, Euro, JPY, Chinese Yuan/Renminbi
+* Cryptocurrency: Bitcoin, Ethereum, Ripple, Monero
+* Agri Commodities: Wheat, Soy, Cattle, Lumber
+
+We started by analyzing each individual index component using univariate ARMA models. As indicated by the time series plots (see Figure 1-3), the raw market price data exhibited time-varying mean and volatility, indicating the necessity of introducing GARCH models. The GARCH framework is an extension of the AR process which allows for nonconstant conditional variance among the residuals. Therefore, it is suitable for our analysis in the sense that it reflects time-varying volatility, allowing for the adjustment of index weights based on changes in asset volatilities and correlations. Since time-varying correlations were also present in the time series, we conducted further analysis by building univariate and multivariate models using the dynamic conditional correlation (DCC) method to account for changing covariances and correlations.
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, fig.height=4.2}
+i_usd=2
+i_btc=6
+i_xwussd=10
+
+get_initial_ts_plots <- function (i) {
+  path1 = "../data/agriculture_prices.csv"
+  path2 = "../data/agriculture_price_diffs.csv"
+  path3 = "../data/agriculture_log_returns.csv"
+  agriculture_prices <- read.csv(path1)
+  agriculture_price_diffs <- read.csv(path2)
+  agriculture_log_returns <- read.csv(path3)
+  dates = as.Date(agriculture_prices$Date)
+  
+  par(mfrow = c(2, 2))
+  par(mar=c(3, 4, 3, 4))
+  plot(ts(agriculture_prices[i]), 
+       type = "l", lty=1, lwd=1, 
+       main=colnames(agriculture_prices)[i], 
+       xaxt="n", ylab="price")
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+  
+  plot(ts(agriculture_price_diffs[i]),
+       main=colnames(agriculture_price_diffs)[i], 
+       xaxt="n", ylab="price change", type = "l", lty=1, lwd=0.8)
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+  
+  plot(ts(agriculture_log_returns[i]),
+       main=colnames(agriculture_log_returns)[i], 
+       xaxt="n", ylab="log return", type = "l", lty=1, lwd=0.8)
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+}
+
+get_initial_ts_plots(i_usd)
+```
+$\newline$
+*Figure 1: Time series plots of price, change in price and log return of USD from late 2016 to early 2019.*
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, fig.height=4.4}
+get_initial_ts_plots <- function (i) {
+  path1 = "../data/agriculture_prices.csv"
+  path2 = "../data/agriculture_price_diffs.csv"
+  path3 = "../data/agriculture_log_returns.csv"
+  agriculture_prices <- read.csv(path1)
+  agriculture_price_diffs <- read.csv(path2)
+  agriculture_log_returns <- read.csv(path3)
+  dates = as.Date(agriculture_prices$Date)
+  
+  par(mfrow = c(2, 2))
+  par(mar=c(3, 4, 3, 4))
+  plot(ts(agriculture_prices[i]), 
+       type = "l", lty=1, lwd=1, 
+       main=colnames(agriculture_prices)[i], 
+       xaxt="n", ylab="price")
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+  
+  plot(ts(agriculture_price_diffs[i]),
+       main=colnames(agriculture_price_diffs)[i], 
+       xaxt="n", ylab="price change", type = "l", lty=1, lwd=0.8)
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+  
+  plot(ts(agriculture_log_returns[i]),
+       main=colnames(agriculture_log_returns)[i], 
+       xaxt="n", ylab="log return", type = "l", lty=1, lwd=0.8)
+  axis(side=1,at=c(1, 300, 600),labels=c(dates[1], dates[300], dates[600]))
+}
+
+get_initial_ts_plots(i_btc)
+```
+
+*Figure 2: Time series plots of price, change in price and log return of Bitcoin from late 2016 to early 2019.*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, fig.height=4.4}
+
+get_initial_ts_plots(i_xwussd)
+```
+
+*Figure 3: Time series plots of price, change in price and log return of Wheat from late 2016 to early 2019.*
+
+# 2.0.0 Practical Issues
+
+Due to the fact that we needed to fit a univariate GARCH model for twelve different assets and each model requires different parameter values (i.e. p, q values in ARMA model), we automated the process by utilizing auto.arima() function and building custom functions to iterate over each asset and fit a model with the lowest information criterion value. In order to ensure the accuracy and reliability of the automated process, we manually fitted the GARCH models for selective assets. Since both the automated process and the manual process produced the same modeling results, we could conclude that the automated process did not introduce additional errors.
+
+# 3.0.0 Data Wrangling
+
+The data cleaning required prior to constructing the Agriculture 12 index include the following:
+
+* Merging the daily close/settle price of Fiat Currencies assets, Cryptocurrencies assets and Agriculture Commodities assets into one dataframe;
+* Setting the data columns to the appropriate data types;
+* Removing any weekends or US holiday dates;
+* Carrying forward any null values with prices from the last trading day;
+* Removing any missing values at the beginning of the series as some data series start from September 30th, 2016 while some starting from October 3rd, 2016;
+* Converting the units of measure to Special Drawing Rights (XDR).
+
+In addition to daily prices, we also constructed a daily price difference series and a daily log-return series (for the relevant R script, refer to *process_data.r*). 
+
+When building any model, it is important to test its performance on out-of-sample data. In adhering to this principle, the data from the most recent year (i.e. the fourth quarter of  2018 to the third quarter of 2019) were removed from the training set, so that the low volatility indices resulting from the GARCH models could be fairly compared to observed market prices.
+
+# 4.0.0 Building Dynamic Conditional Correlation (DCC) Models
+
+<Andrew added this>
+
+Overview of GARCH Models
+
+The autoregressive moving average model (ARMA) assumes that the resulting residuals $\{a_t\}$ are a white noise series with mean zero and constant variance. This assumption is often not adequate in financial time series which are known to exhibit volatility clustering. The generalized autoregressive conditional heteroscedastic (GARCH) model extends the ARMA model by modeling the residuals of the ARMA model for the mean. The innovation at time $t$, $a_t$ is of the form GARCH(m, s) if
+
+
+$$a_t = \sigma_t \epsilon_t, \qquad \sigma_{t}^2 = \alpha_0  +  \sum_{i=1}^m \alpha_i a_{t-i}^2  +  \sum_{j=1}^s \beta_j \sigma_{t-j}^2$$
+where $\{\epsilon_t\}$ is an iid sequence of random variables with mean zero and variance 1 and $\alpha_i \geq 0$, $\beta_j \geq 0$, and $\sum_{i=1}^{max(m, s)} (\alpha_i + \beta_i) < 1$.
+
+If we let $\eta_t = \alpha_t^2 - \sigma_t^2$ then $\{\eta_t\}$ is a martingale difference and we may rewrite the above as 
+ 
+$$a_t^2 = \sum_{i=1}^{max(m, s)} (\alpha_i + \beta_i) a_{t-i}^2 + \eta_t - \sum_{j=1}^s \beta_j \eta_{t-j}$$
+Thus the GARCH model may be thought of an application of an ARMA model to the squared residuals $\{a_t^2\}$ from the ARMA model fit to the mean of the time series. 
+
+Multivariate time series may exhibit time varying correlation in addition to time varying variance. To capture this behavior the class of dynamic conditional correlation (DCC) models, models the correlation between two time series similar to how a univariate GARCH model models the variance of a time series.
+
+<end>
+
+
+Before fitting the multivariate DCC model, we first needed to construct univariate GARCH models for each individual component of the index. Using the ARMA + GARCH method, we first fitted an ARMA model to the series by setting the maximum number of AR terms and MA terms to 2 respectively. This was followed by fitting a second ARMA model to the squared residuals of the first model. Finally, we used the *ugarchspec()* function from the *rugarch* package to generate the GARCH model by setting the “mean.model” parameter based on the first ARMA model and the “variance.model” parameter based on the second one. 
+
+The GARCH model we chose is standard GARCH and we assumed that the conditional density for the innovations follow a normal distribution so that we could limit the number of parameters involved and improve the modeling speed. Note that since the order of the volatility model must be specified for the *ugarchspec* function to work, in the event that the order of the second ARMA model--chosen by auto.arima--ends up being c(0, 0), we replaced the result with an ARCH(1) process, which is the simplest GARCH model.
+
+Ljung-Box test conducted on USD daily price indicates the presence of significant serial autocorrelation at K = 5 lags, and thus the null hypothesis of white noise process should be rejected:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+price_data = read.csv("../data/agriculture_prices.csv")
+Box.test(price_data[, 2], lag = 5, type = "Ljung-Box")
+```
+
+The GARCH model specification for the univariate USD raw price indicates that an ARIMA(0, 0, 2) + GARCH(2, 2) model is the optimal fit. The resulting model formula is:
+
+<insert formula>
+
+AIC and BIC for the model fit are -8.4587 and -8.4096, respectively (normalized by dividing by the number of observations). The weighted Ljung-Box tests indicate that while the standardized residuals exhibit significant serial autocorrelation, the standardized squared residuals is a white noise process at K = 4 lags. The Adjusted Pearson Goodness-of-Fit test, which compares the distribution of the standardized residuals against the theoretical Gaussian distribution of the standardized residuals, shows that the small p-values strongly reject the null hypothesis that the white noise standardized innovation process follows a Gaussian distribution. Nevertheless, due to technical constraints, when we constructed the multivariate DCC model, we assumed that the distribution of the error term is Gaussian to limit modeling complexity.
+
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+cols <- colnames(read.csv("../data/agriculture_prices.csv"))
+cols
+ugarch_spec_USD <- readRDS(paste0("../models/specs/ugarch_", "prices_", cols[2]))
+ugarch_USD = ugarchfit(spec=ugarch_spec_USD, data=price_data[, 2], )
+ugarch_spec_USD
+ugarch_USD
+```
+
+## 4.3.0 Fitting Univariate USD GARCH model Residuals to Normal Distribution
+
+### 4.3.1 Parameters:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+ugarch_spec_USD <- readRDS(paste0("../models/specs/ugarch_", "prices_", cols[2]))
+price_data = read.csv("../data/agriculture_prices.csv")
+ugarch_USD = ugarchfit(spec=ugarch_spec_USD, data=price_data[, 2], )
+
+e <- residuals(ugarch_USD)
+fit_normal <- fitdistr(e, "normal")
+est_normal <- fit_normal$estimate
+fit_normal
+```
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, fig.height=3}
+par(mfrow=c(1, 2))
+plot(density(e), main = "Density Estimator Overlay")
+lines(seq(-10, 10,0.01), dnorm(seq(-10, 10, 0.01),
+                              mean = est_normal[1], sd = est_normal[2], log = FALSE),
+      lty = 2 , col = 2 )
+legend("topright", col = c(1,2), lty = c(1,2), legend = c("KDE", "Normal"), cex=0.75)
+plot(qqnorm(e, datax = TRUE), main="QQ Plot")
+```
+*Figure 4: (left) KDE of univariate USD GARCH model residuals versus normal density plot; (right) QQ-plot of univariate USD GARCH model model residuals*
+
+## 4.4.0 Fitting Univariate USD GARCH Model Residuals to t-distribution:
+
+### 4.4.1 Parameters:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+e <- residuals(ugarch_USD)
+fit_t <- stdFit(e)
+est_t <- fit_t$par
+fit_t
+```
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, fig.height=3}
+par(mfrow=c(1, 2))
+plot(density(e), main = "Density Estimator Overlay")
+lines(seq(-10, 10,0.01), dstd(seq(-10, 10, 0.01),
+                              mean = est_t[1], sd = est_t[2],
+                              nu = est_t[3], log = FALSE),
+      lty = 2 , col = 2 )
+legend("topright", col = c(1,2), lty = c(1,2), legend = c("KDE", "T"), cex=0.75)
+plot(qqnorm(e, datax = TRUE), main="QQ Plot")
+```
+*Figure 5: (left) KDE of univariate USD GARCH model residuals versus density plot of t-distribution; (right) QQ-plot of univariate USD GARCH model model residuals*
+
+Fitting the residuals to the normal distribution and Student's t-distribution resulted in highly similar kernel density estimation plot and QQ plot, which is likely due to the fact that the estimated statistics from both distributions are very close to 0.
+
+## 4.5.0 Multivariate model:
+
+Multivariate Ljung-Box tests conducted on daily asset prices, daily price changes and daily log returns all indicate the presence of significant serial autocorrelation in the first K = 5 lags, and thus the null hypothesis of white noise process should be rejected:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+library(forecast)
+get_mLjungBox <- function (path) {
+  agriculture_prices <- read.csv(path)
+  return(mLjungBox(agriculture_prices[, 2: length(colnames(agriculture_prices))], lag=5))
+}
+
+get_mLjungBox("../data/agriculture_prices.csv")
+```
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_mLjungBox("../data/agriculture_price_diffs.csv")
+```
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_mLjungBox("../data/agriculture_log_returns.csv")
+```
+
+$\newline$
+Taking the twelfth model as an example where the twelfth model is the DCC GARCH (1, 1) model fit results based on trading days from 2 consecutive quarters ending 2019-09-30, we found that AIC and BIC for the model fit are -5.5199 and -2.2278, respectively (normalized by dividing by 127). 
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+fit <- readRDS(paste0("../models/dcc fits/prices_", QUARTERS[12]))
+fit
+```
+
+Conducting multivariate Ljung-Box test on the residuals from the above model fit:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+QUARTERS <- as.Date(c("2016-12-31", "2017-03-31", "2017-06-30", "2017-09-30", "2017-12-31", "2018-03-31", 
+                      "2018-06-30", "2018-09-30", "2018-12-31", "2019-03-31", "2019-06-30", "2019-09-30"))
+model_12 <- readRDS(paste0("../models/dcc fits/prices_", QUARTERS[12]))
+mLjungBox(residuals(model_12), lag=5)
+```
+
+The small p-values indicate that the null hypothesis should be rejected. There is significant serial correlation among the residuals in the first k = 5 lags, which is an indicator that our model needs further improvement and parameter tuning.
+
+# 5.0.0 Calculating Price Covariance
+
+We obtained index weights by running quarterly rolling forecasts using the DCC model. We fitted a separate DCC model for each pair of consecutive quarters within the training dataset. Then starting from the third quarter (i.e. Q2’2017), we used the model from previous two quarters of data to forecast the daily close/settle price, daily price difference, daily log return for trading days in the following quarter. The *rcov* function extracts the $N \times N \times T$ covariance matrix produced by *dccforecast* with the diagonal of the matrix representing asset variances over the forecast horizon. Note here that $N$ stands for number of assets while $T$ stands for number of forecasting days.
+
+Constructing variance-minimizing portfolio weights given a set of constraints is a quadratic programming problem and we utilized the *solve.QP* function to obtain the vector containing the set of weights that minimize the sum of asset variances. The constraint matrix for index weights include the following two conditions: 
+
+1. The weights for risky assets and less risky assets must sum to 1, and 
+2. Each individual weight must be greater than 1% and less than 25%. 
+
+Given that assets with large and volatile variances, such as cryptocurrencies assets, could cause the solver function to crash, we set the maximum variance threshold to be $10^{-6}$ and manually assignned an index weight of 0.01 to those risky assets. Combining the daily forecasts with quarterly portfolio weights gave us the agriculture index’s performance over time.
+
+Note that using *dccforecast* only makes sense for raw daily price prediction, because if we were to use *dccforecast* to obtain daily price differences and log-returns, we would need to run 1-day, 2-day, … , n-day ahead predictions for every trading day within a quarter to obtain the end-of-quarter price, which would be computationally inefficient. Therefore, for daily price differences and log-returns, we ran 10,000 iterations of simulations using dccsim to obtain the daily changes and add them back to the preceding price to get the actual daily price.
+
+## 5.1.0 Correlation plot associated with the first time period:
+
+Obviously, the historical correlations between USD and Bitcoin, USD and Wheat, Wheat & Bitcoin are all varying over time, justifying the need of using a DCC GARCH framework.
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_cor <- function (i) {
+  fit <- readRDS(paste0("../models/dcc fits/prices_", QUARTERS[i]))
+  
+  return(rcor(fit))
+}
+
+i = 3
+cor_mat = get_cor(i)
+par(mfrow = c(3, 1))
+plot(as.xts(cor_mat[1, 5, ]), xlab="Correlation", ylab="Quarter", main="Daily GARCH Correlation Estimaate - USD & BTC")
+plot(as.xts(cor_mat[1, 9, ]), xlab="Correlation", ylab="Quarter", main="Daily GARCH Correlation Estimaate - USD & X__W_USSD")
+plot(as.xts(cor_mat[5, 9, ]), xlab="Correlation", ylab="Quarter", main="Daily GARCH Correlation Estimaate - BTC & X__W_USSD")
+```
+*Figure 6: (top) daily correlation estimates between USD and Bitcoin between Jan 3, 2017 to June 30, 2017; (middle) daily correlation estimates between USD and Wheat between Jan 3, 2017 to June 30, 2017; (bottom) daily correlation estimates between Bitcoin and Wheat between Jan 3, 2017 to June 30, 2017*
+
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, include = F}
+get_forecast <- function (i) {
+  fit <- readRDS(paste0("../models/dcc fits/prices_", QUARTERS[i]))
+  forecast_horizon <- sum(isBusinessDay(calendar="UnitedStates/NYSE", 
+                                        dates=seq(QUARTERS[i], QUARTERS[i+1], by="day")))
+  sim <- dccforecast(fit, n.ahead = forecast_horizon)
+  
+  return(sim)
+}
+
+i = 3
+forecast_i <- get_forecast(i)
+R_forecast <- forecast_i@mforecast$R[[1]]
+# 64, 125
+
+d = c(125, 64)
+usd_btc <- as.xts(cor_mat[1, 5, ])
+my_periodicity <- unclass(periodicity(usd_btc))$label
+
+v_dates_end <- seq(as.Date(end(usd_btc)),
+                   by = my_periodicity,
+                   length.out = (d[2]+1))[-1]
+x_expand_time_index <- xts(rep(as.numeric(NA), d[2]), order.by = c(v_dates_end))
+
+usd_btc_c <- c(usd_btc, x_expand_time_index)
+
+f_usd_btc <- R_forecast[1, 5, ]
+
+f_usd_btc_c <- xts(c(rep(NA, d[1]), f_usd_btc), order.by=index(usd_btc_c))
+
+plot(usd_btc_c, xlab="Correlation", ylab="Quarter", main="Daily GARCH Correlation Estimaate with Predictions - USD & BTC")
+```
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+lines(f_usd_btc_c, type="b", col="red")
+```
+*Figure 7: daily correlation estimates between USD and Bitcoin between Jan 3, 2017 to June 30, 2017 with forecasts to Sept 30, 2017*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, include = F}
+usd_agri <- as.xts(cor_mat[1, 9, ])
+my_periodicity <- unclass(periodicity(usd_agri))$label
+
+v_dates_end <- seq(as.Date(end(usd_agri)),
+                   by = my_periodicity,
+                   length.out = (d[2]+1))[-1]
+x_expand_time_index <- xts(rep(as.numeric(NA), d[2]), order.by = c(v_dates_end))
+
+usd_agri_c <- c(usd_agri, x_expand_time_index)
+
+f_usd_agri <- R_forecast[1, 9, ]
+
+f_usd_agri_c <- xts(c(rep(NA, d[1]), f_usd_agri), order.by=index(usd_agri_c))
+
+plot(usd_agri_c, xlab="Correlation", ylab="Quarter", main= "Daily GARCH Correlation Estimaate with Predictions - USD & Agri")
+```
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+lines(f_usd_agri_c, type="b", col="red")
+```
+*Figure 8: daily correlation estimates between USD and Wheat between Jan 3, 2017 to June 30, 2017 with forecasts to Sept 30, 2017*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T, include = F}
+btc_agri <- as.xts(cor_mat[5, 9, ])
+my_periodicity <- unclass(periodicity(btc_agri))$label
+
+v_dates_end <- seq(as.Date(end(btc_agri)),
+                   by = my_periodicity,
+                   length.out = (d[2]+1))[-1]
+x_expand_time_index <- xts(rep(as.numeric(NA), d[2]), order.by = c(v_dates_end))
+
+btc_agri_c <- c(btc_agri, x_expand_time_index)
+
+f_btc_agri <- R_forecast[5, 9, ]
+
+f_btc_agri_c <- xts(c(rep(NA, d[1]), f_btc_agri), order.by=index(btc_agri_c))
+
+plot(btc_agri_c, xlab="Correlation", ylab="Quarter", main="Daily GARCH Correlation Estimaate with Predictions - BTC & Agri")
+```
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+lines(f_btc_agri_c, type="b", col="red")
+```
+*Figure 9: daily correlation estimates between Bitcoin and Wheat between Jan 3, 2017 to June 30, 2017 with forecasts to Sept 30, 2017*
+
+## Looking at ACF and CCF plots between USD,  BTC, and X__W_USSD, we can see some interesting autocorrelation decay and correlation decay patterns:
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+i_usd=2
+i_btc=6
+i_xwussd=10
+
+get_acf_ccf <- function (path, i, j) {
+  agriculture_prices <- read.csv(path)
+  par(mfrow = c(2, 2))
+  par(mar=c(3, 4, 3, 4))
+  acf(agriculture_prices[, i], main=colnames(agriculture_prices)[i], ylab="ACF")
+  ccf(agriculture_prices[, i], agriculture_prices[, j],
+      main=paste(colnames(agriculture_prices)[i], "& ", colnames(agriculture_prices)[j]),
+      ylab="CCF")
+  ccf(agriculture_prices[, j], agriculture_prices[, i],
+      main=paste(colnames(agriculture_prices)[j], "& ", colnames(agriculture_prices)[i]),
+      ylab="CCF")
+  acf(agriculture_prices[, j], main=colnames(agriculture_prices)[j], ylab="ACF")
+}
+
+get_acf_ccf("../data/agriculture_prices.csv", i_usd, i_btc)
+```
+*Figure 10: (top left) ACF of USD; (top right) CCF of USD vs. Bitcoin; (bottom left) CCF of Bitcoin vs. USD; (bottom right) ACF of Bitcoin*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_acf_ccf("../data/agriculture_prices.csv", i_usd, i_xwussd)
+```
+*Figure 11: (top left) ACF of USD; (top right) CCF of USD vs. Wheat; (bottom left) CCF of Wheat vs. USD; (bottom right) ACF of Wheat*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_acf_ccf("../data/agriculture_prices.csv", i_btc, i_xwussd)
+```
+*Figure 12: (top left) ACF of BTC; (top right) CCF of BTC vs. Wheat; (bottom left) CCF of Wheat vs. BTC; (bottom right) ACF of Wheat*
+
+$\newline$
+## Examining the residuals for the 12th models by looking at ACF, PACF, and CCF plots: (residuals look good I guess?)
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_acf_ccf_residuals <- function (qu, i, j) {
+  QUARTERS <- as.Date(c("2016-12-31", "2017-03-31", "2017-06-30", "2017-09-30", "2017-12-31", "2018-03-31", 
+                      "2018-06-30", "2018-09-30", "2018-12-31", "2019-03-31", "2019-06-30", "2019-09-30"))
+  model_fit <- readRDS(paste0("../models/dcc fits/prices_", QUARTERS[qu]))
+  res = residuals(model_fit)
+  series1 = as.numeric(res[, i])
+  series2 = as.numeric(res[, j])
+  
+  par(mfrow = c(3, 2))
+  par(mar=c(3, 4, 3, 4))
+  acf(series1, main=colnames(res)[i], ylab="ACF")
+  pacf(series1, main=colnames(res)[i], ylab="PACF")
+  ccf(series1, series2,
+      main=paste(colnames(res)[i], "& ", colnames(res)[j]),
+      ylab="CCF")
+  ccf(series2, series1,
+      main=paste(colnames(res)[j], "& ", colnames(res)[i]),
+      ylab="CCF")
+  acf(series2, main=colnames(res)[j], ylab="ACF")
+  pacf(series2, main=colnames(res)[j], ylab="PACF")
+}
+
+i_usd=1
+i_btc=5
+i_xwussd=9
+
+get_acf_ccf_residuals(12, i_usd, i_btc)
+```
+*Figure 13: (top left) ACF of USD; (top right) PACF of USD; (middle left) CCF of USD vs. Bitcoin; (middle right) CCF of Bitcoin vs. USD; (bottom left) ACF of Bitcoin; (bottom right) PACF of Bitcoin*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_acf_ccf_residuals(12, i_usd, i_xwussd)
+```
+*Figure 14: (top left) ACF of USD; (top right) PACF of USD; (middle left) CCF of USD vs. Wheat; (middle right) CCF of Wheat vs. USD; (bottom left) ACF of Wheat; (bottom right) PACF of Wheat*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+get_acf_ccf_residuals(12, i_btc, i_xwussd)
+```
+*Figure 15: (top left) ACF of Bitcoin; (top right) PACF of Bitcoin; (middle left) CCF of Bitcoin vs. Wheat; (middle right) CCF of Wheat vs. Bitcoin; (bottom left) ACF of Wheat; (bottom right) PACF of Wheat*
+
+# 6.0.0 Portfolio Weights
+
+The stacked portfolio weights plot indicates that the currency assets make up most of the entire portfolio, regardless whether the modeling process was based on daily raw price, daily price changes or daily log returns. 
+
+The first and third portfolios appear similar to each other. The portfolios only consist of a veCry small proportion of the ryptocurrency assets, which is in line with our expectations since their price and return are highly volatile. Among the agricultural commodities, wheat and soy seem to take up a significant portion of the portfolio weights, although towards the end of the analysis time frame, the variance-minimizing policy decided to sell the agricultural commodity and instead allocate the majority weights to fiat currencies assets.
+
+For the portfolio based on log return, it still retained a significant proportion of agricultural commodity towards the end. Interestingly, the re-weighting scheme seems to be balancing the weight between Wheat and Soy: for each four-quarter period, the portfolio started with a majority of Wheat (among the agricultural commodities asset class) and then gradually decrease the weights assigned to Wheat while buying more Soy assets instead.
+
+
+## 6.1 Raw price
+
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+getStackedPlot <- function (path) {
+  prices_index_weights = read.csv(path)
+  
+  QUARTERS <- c("2017-06-30", "2017-09-29", "2017-12-29", "2018-03-29", "2018-06-29", "2018-09-28", 
+                "2018-12-31", "2019-03-29", "2019-06-28", "2019-09-30")
+  
+  prices_index_weights_q = prices_index_weights[prices_index_weights$Date %in% QUARTERS, ]
+  
+  prices_index_weights_melt = melt(prices_index_weights_q[, 2:length(colnames(prices_index_weights_q))], id.vars="Date")
+  
+  prices_index_weights_plot <- ggplot() + 
+    geom_bar(aes(y = value, x = Date, fill = variable), 
+             data = prices_index_weights_melt, stat="identity", position="stack") + 
+    ylab("Percent weights") + 
+    xlab("Quarters") + 
+    ggtitle("Portfolio Weights") + 
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  
+  prices_index_weights_plot+scale_fill_brewer(palette="Paired")
+}
+
+getStackedPlot("../data/prices_index_weights.csv")
+```
+*Figure 16: Portfolio reweights for raw prices over June 30, 2017 to Sept 30, 2019*
+
+## 6.2 Price difference
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+getStackedPlot("../data/price_diffs_index_weights.csv")
+```
+*Figure 17: Portfolio reweights for prices difference over June 30, 2017 to Sept 30, 2019*
+
+## 6.3 Log-return
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+getStackedPlot("../data/log_returns_index_weights.csv")
+```
+*Figure 18: Portfolio reweights for log-returns over June 30, 2017 to Sept 30, 2019*
+
+# 7.0.0 Index Preference
+
+From 2017-06-30 to 2019-09-30, the S&P 500 Index achieved a gross return of 22.743% (Based on closing price of 2425.18 on 2017-07-03 and closing price of 2976.74 on 2019-09-30). Our Agricultural index (modeling and reweighting based on raw daily price) outperformed the market. Evaluating our portfolio construction mechanism on the out-of-sample data, it achieved a sizable return from 2018-10-01 to 2019-09-30, though the return seems to be reverting back around second half of 2019.
+
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+agriculture_indicies <- read.csv("../data/agriculture_indicies.csv")
+agriculture_indicies_out_of_sample <- read.csv("../data/agriculture_indicies_out_of_sample.csv")
+sp500 <- read.csv("../^GSPC.csv")
+sp500[, 1] <- as.Date(sp500[, 1], format="%m/%d/%y")
+sp500[, 2] <- (as.numeric(sp500[, 2]) / (as.numeric(sp500[, 2])[1])) * 100
+sp500 = as.xts(sp500[, -1], order.by = sp500[, 1])
+
+index_dates = index(sp500)
+plot(ts(sp500[, 1]), type="l", col="green", lwd=2, xlab="Quarter", ylab="Index Price", ylim=c(90, 150), xaxt="n")
+axis(side=1,at=c(1, 100, 200, 300, 400, 500),
+     labels=c(index_dates[1], index_dates[100], index_dates[200], 
+              index_dates[300], index_dates[400], index_dates[500]),
+     cex.axis=0.9)
+lines(agriculture_indicies$Date, agriculture_indicies$Index_prices, type="l", col="black", lwd=2)
+lines(agriculture_indicies$Date, agriculture_indicies$Index_price_diffs, type="l", col="red", lwd=2)
+lines(agriculture_indicies$Date, agriculture_indicies$Index_log_returns, type="l", col="blue", lwd=2)
+
+title("Index Price Change")
+legend("topleft", c("Price", "Price Change", "Log Return", "S&P 500"), lty = c(1, 1, 1, 1), lwd=2, col=c("black", "red", "blue", "green"))
+```
+*Figure 19: Index price change of raw prices, price difference, log-returns benchmarked against SMP 500 from June 30, 2017 to Sept 30, 2019. (Source: Yohoo Finance SMP 500 Index Adj.close)*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+sp500 <- read.csv("../^GSPC.csv")
+sp500_oos <- sp500[316:566, ]
+sp500_oos[, 1] <- as.Date(sp500_oos[, 1], format="%m/%d/%y")
+sp500_oos[, 2] <- (as.numeric(sp500_oos[, 2]) / (as.numeric(sp500_oos[, 2])[1])) * 100
+sp500_oos <- as.xts(sp500_oos[, -1], order.by = sp500_oos[, 1])
+
+index_dates = index(sp500_oos)
+plot(ts(sp500_oos), type="l", col="green", lwd=2, xlab="Quarter", ylab="Index Price", ylim=c(80, 130), xaxt="n")
+axis(side=1,at=c(1, 50, 100, 150, 200, 250),
+     labels=c(index_dates[1], index_dates[50], index_dates[100], index_dates[150], index_dates[200], index_dates[250]))
+
+lines(agriculture_indicies_out_of_sample$Date, agriculture_indicies_out_of_sample$Index_prices, type="l", col="black", lwd=2)
+lines(agriculture_indicies_out_of_sample$Date, agriculture_indicies_out_of_sample$Index_price_diffs, type="l", col="red", lwd=2)
+lines(agriculture_indicies_out_of_sample$Date, agriculture_indicies_out_of_sample$Index_log_returns, type="l", col="blue", lwd=2)
+
+title("Index Price Change - Out of Sample Data")
+legend("topleft", c("Price", "Price Change", "Log Return", "S&P 500"), lty = c(1, 1, 1, 1), lwd=2, col=c("black", "red", "blue", "green"))
+```
+*Figure 20: Index price change of raw prices, price difference, log-returns benchmarked against SMP 500 from Oct 1, 2018 to Sept 30, 2019. (Source: Yohoo Finance SMP 500 Index Adj.close)*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+place_holder = rep(NA, length(agriculture_indicies$Date) - length(agriculture_indicies_out_of_sample$Date))
+start_diff = agriculture_indicies$Index_prices[length(place_holder) + 1] -
+  agriculture_indicies_out_of_sample$Index_prices[1]
+
+plot(agriculture_indicies$Date, agriculture_indicies$Index_prices, 
+     type="l", col="black", lwd=2, xlab="Quarter", ylab="Index Price", 
+     ylim = c(100, 160))
+lines(c(place_holder, agriculture_indicies_out_of_sample$Index_prices + start_diff), type="l", col="red", lwd=2)
+
+title("Index price based on raw price - Complete series vs. out-of-sample data")
+legend("topleft", c("Complete", "Out of sample"), lty = c(1, 1), lwd=2, col=c("black", "red"))
+```
+*Figure 21: Index price change of complete series vs. out-of-sample data for raw prices*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+place_holder = rep(NA, length(agriculture_indicies$Date) - length(agriculture_indicies_out_of_sample$Date))
+start_diff = agriculture_indicies$Index_price_diffs[length(place_holder) + 1] -
+  agriculture_indicies_out_of_sample$Index_price_diffs[1]
+
+plot(agriculture_indicies$Date, agriculture_indicies$Index_price_diffs, 
+     type="l", col="black", lwd=2, xlab="Quarter", ylab="Index Price", 
+     ylim = c(100, 160))
+lines(c(place_holder, agriculture_indicies_out_of_sample$Index_price_diffs + start_diff), type="l", col="red", lwd=2)
+
+title("Index price based on price change - Complete series vs. out-of-sample data")
+legend("topleft", c("Complete", "Out of sample"), lty = c(1, 1), lwd=2, col=c("black", "red"))
+```
+*Figure 22: Index price change of complete series vs. out-of-sample data for price difference*
+
+$\newline$
+```{r,echo=F,eval=TRUE,warning=FALSE,cache=T}
+place_holder = rep(NA, length(agriculture_indicies$Date) - length(agriculture_indicies_out_of_sample$Date))
+start_diff = agriculture_indicies$Index_log_returns[length(place_holder) + 1] -
+  agriculture_indicies_out_of_sample$Index_log_returns[1]
+
+plot(agriculture_indicies$Date, agriculture_indicies$Index_log_returns, 
+     type="l", col="black", lwd=2, xlab="Quarter", ylab="Index Price", 
+     ylim = c(100, 160))
+lines(c(place_holder, agriculture_indicies_out_of_sample$Index_log_returns + start_diff), type="l", col="red", lwd=2)
+
+title("Index price based on log return - Complete series vs. out-of-sample data")
+legend("topleft", c("Complete", "Out of sample"), lty = c(1, 1), lwd=2, col=c("black", "red"))
+```
+*Figure 23: Index price change of complete series vs. out-of-sample data for log-returns*
+
+# 8.0.0 Extension/Future Application
+
+We believe that an immediate improvement to our work could be had by fitting each model on more than just the past two quarters of data. This would allow the GARCH residuals to be modeled by a more appropriate distribution such as a symmetric or skewed t-distribution. It would also allow for us to test more complex GARCH models which may better represent the ground truth of the return series.
+
+In the construction of the low volatility indices, specifically in the formulation of the quadratic programming problem for the portfolio weights, we did not specify a minimum expected return for the portfolio. Specifying a minimum portfolio return would be a simple extension of our work. As most indices are weighted by market cap, we hypothesize that the quadratic programming problem of choosing the minimum volatility weights would still be well defined if we were to introduce the constraint that the low volatility index must be expected to outperform the market cap weighted index by a fixed percent. This extension of our work could be used to construct smart beta indices designed to outperform a particular market cap weighted index while still being composed of the same assets.  
